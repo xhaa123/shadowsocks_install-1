@@ -356,13 +356,27 @@ firewall_set(){
             echo -e "[${yellow}Warning${plain}] iptables looks like shutdown or not installed, please manually set it if necessary."
         fi
     elif centosversion 7; then
-        systemctl status firewalld > /dev/null 2>&1
-        if [ $? -eq 0 ]; then
+        firewalld='systemctl status firewalld | grep "Active: active (exited)"> /dev/null 2>&1'
+        if [ $firewalld -eq 0 ]; then
             firewall-cmd --permanent --zone=public --add-port=${shadowsocksport}/tcp
             firewall-cmd --permanent --zone=public --add-port=${shadowsocksport}/udp
             firewall-cmd --reload
         else
             echo -e "${yellow}Warning${plain} firewalld looks like not running or not installed, please enable port ${shadowsocksport} manually if necessary."
+        fi
+        iptables='systemctl status iptables | grep "Active: active (exited)" > /dev/null 2>&1'
+        if [ $iptables -eq 0 ]; then
+            iptables -L -n | grep -i ${shadowsocksport} > /dev/null 2>&1
+            if [ $? -ne 0 ]; then
+                iptables -I INPUT -m state --state NEW -m tcp -p tcp --dport ${shadowsocksport} -j ACCEPT
+                iptables -I INPUT -m state --state NEW -m udp -p udp --dport ${shadowsocksport} -j ACCEPT
+                service iptables save
+                systemctl restart iptables
+            else
+                echo -e "[${green}Info${plain}] port ${shadowsocksport} has been set up."
+            fi
+        else
+            echo -e "[${yellow}Warning${plain}] iptables looks like shutdown or not installed, please manually set it if necessary."
         fi
     fi
     echo "firewall set completed..."
